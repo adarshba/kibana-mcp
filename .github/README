@@ -1,0 +1,135 @@
+kibana-mcp
+==========
+
+A Model Context Protocol (MCP) server that exposes Kibana capabilities to
+AI agents over stdio transport. Search logs, inspect indices, run raw
+Elasticsearch DSL queries, and explore dashboards — all from your AI client.
+
+
+What is this?
+-------------
+
+This server bridges the MCP protocol and the Kibana REST API. An AI agent
+(Claude, Cursor, OpenCode, etc.) connects over stdio and calls tools that
+execute against your Kibana instance. Auth is via API key. Config is via
+environment variables. No side effects outside defined tool calls.
+
+
+Quick Start
+-----------
+
+  export KIBANA_URL="https://your-kibana.example.com"
+  export KIBANA_API_KEY="your-api-key"
+  npx kibana-mcp start
+
+
+Environment Variables
+---------------------
+
+  KIBANA_URL          (required) Base URL of your Kibana instance
+  KIBANA_API_KEY      (required) API key value (Authorization: ApiKey <value>)
+  KIBANA_TIMEOUT_MS   (optional) Request timeout in ms, default 30000
+  KIBANA_MAX_RETRIES  (optional) Max retries on transient failures, default 3
+
+
+MCP Client Setup
+----------------
+
+Claude Desktop / Cursor:
+
+  {
+    "mcpServers": {
+      "kibana": {
+        "command": "npx",
+        "args": ["kibana-mcp", "start"],
+        "env": {
+          "KIBANA_URL": "https://your-kibana.example.com",
+          "KIBANA_API_KEY": "your-api-key"
+        }
+      }
+    }
+  }
+
+OpenCode CLI (~/.config/opencode/config.json):
+
+  {
+    "mcp": {
+      "kibana": {
+        "type": "local",
+        "command": ["npx", "kibana-mcp", "start"],
+        "environment": {
+          "KIBANA_URL": "https://your-kibana.example.com",
+          "KIBANA_API_KEY": "your-api-key"
+        },
+        "enabled": true
+      }
+    }
+  }
+
+
+Tools
+-----
+
+search_logs
+  Search logs using KQL or Lucene query syntax with optional time range
+  filtering and pagination.
+
+  index     (required) Index name or pattern, e.g. logs-*
+  query     (required) KQL or Lucene query string
+  from      (optional) Start time, ISO 8601 with offset
+  to        (optional) End time, ISO 8601 with offset
+  size      (optional) Results to return, default 50, max 500
+  offset    (optional) Pagination offset, default 0
+
+get_indices
+  List all Elasticsearch indices available through Kibana. No parameters.
+
+get_index_pattern
+  Fetch details of a Kibana index pattern including all field definitions.
+
+  id        (required) Index pattern ID
+
+run_query
+  Execute a raw Elasticsearch DSL query against a Kibana index.
+
+  index     (required) Target index name or pattern
+  query     (required) Elasticsearch DSL query object
+  size      (optional) Results to return, default 10, max 10000
+
+get_dashboards
+  List Kibana dashboards with pagination.
+
+  page      (optional) Page number, default 1
+  perPage   (optional) Results per page, default 20, max 100
+
+get_dashboard
+  Fetch a specific Kibana dashboard including its panel configuration.
+
+  id        (required) Dashboard saved object ID
+
+
+Project Layout
+--------------
+
+  src/config/schema.ts          Zod schema for environment config
+  src/config/index.ts           Config loader with lazy validation
+  src/types/kibana.ts           Kibana API response type definitions
+  src/types/tool.ts             Tool<I,O>, ToolResult, StructuredError
+  src/core/errors.ts            KibanaError class and error mapper
+  src/clients/http.ts           Fetch wrapper: auth, timeout, retry
+  src/clients/kibana.ts         Typed Kibana REST API methods
+  src/tools/search-logs.ts      search_logs tool
+  src/tools/get-indices.ts      get_indices tool
+  src/tools/get-index-pattern.ts  get_index_pattern tool
+  src/tools/run-query.ts        run_query tool
+  src/tools/get-dashboards.ts   get_dashboards tool
+  src/tools/get-dashboard.ts    get_dashboard tool
+  src/server/registry.ts        Registers all tools on McpServer
+  src/server/index.ts           Bootstrap: config -> clients -> server -> stdio
+  bin/cli.ts                    kibana-mcp start CLI entry point
+
+
+License
+-------
+
+MIT
