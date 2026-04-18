@@ -17,5 +17,19 @@ const parseConfig = (): Config => {
   return Object.freeze(result.data);
 };
 
-export const config: Config = parseConfig();
+let cachedConfig: Config | undefined;
+
+export const getConfig = (): Config => {
+  if (!cachedConfig) {
+    cachedConfig = Object.freeze(parseConfig());
+  }
+  return cachedConfig;
+};
+
+export const config: Config = new Proxy({} as Config, {
+  get(_target, prop) {
+    return getConfig()[prop as keyof Config];
+  },
+});
+
 export type { Config };
