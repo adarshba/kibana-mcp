@@ -10,7 +10,7 @@
     }
   },
   "bin": {
-    "kibana-mcp": "./dist/cli.js"
+    "kibana-mcp": "dist/cli.js"
   },
   "files": [
     "dist"
