@@ -7,8 +7,8 @@ const inputSchema = z.object({
   query: z.string().min(1),
   from: z.string().datetime({ offset: true }).optional(),
   to: z.string().datetime({ offset: true }).optional(),
-  size: z.number().int().min(1).max(500).default(50).optional(),
-  offset: z.number().int().min(0).default(0).optional(),
+  size: z.number().int().min(1).max(500).optional(),
+  offset: z.number().int().min(0).optional(),
 });
 
 type Input = z.infer<typeof inputSchema>;
