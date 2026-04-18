@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z, type ZodSchema } from "zod";
 import { type Tool } from "../types/tool.js";
 import { mapToStructuredError } from "../core/errors.js";
 
@@ -7,8 +7,8 @@ const inputSchema = z.object({
   query: z.string().min(1),
   from: z.string().datetime({ offset: true }).optional(),
   to: z.string().datetime({ offset: true }).optional(),
-  size: z.number().int().min(1).max(500).optional(),
-  offset: z.number().int().min(0).optional(),
+  size: z.number().int().min(1).max(500).default(50),
+  offset: z.number().int().min(0).default(0),
 });
 
 type Input = z.infer<typeof inputSchema>;
@@ -27,7 +27,7 @@ export const searchLogsTool: Tool<Input, Output> = {
   name: "search_logs",
   description:
     "Search logs in a Kibana index using KQL or Lucene query syntax with optional time range filtering and pagination.",
-  inputSchema,
+  inputSchema: inputSchema as ZodSchema<Input>,
   execute: async (input, client) => {
     try {
       const result = await client.searchLogs({
@@ -35,8 +35,8 @@ export const searchLogsTool: Tool<Input, Output> = {
         query: input.query,
         from: input.from,
         to: input.to,
-        size: input.size ?? 50,
-        offset: input.offset ?? 0,
+        size: input.size,
+        offset: input.offset,
       });
 
       return {
