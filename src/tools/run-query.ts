@@ -23,10 +23,11 @@ export const runQueryTool: Tool<Input, Output> = {
   inputSchema,
   execute: async (input, client) => {
     try {
+      const size = input.size ?? 10;
       const result = await client.runQuery({
         index: input.index,
         query: input.query,
-        size: input.size ?? 10,
+        size,
       });
 
       return {
