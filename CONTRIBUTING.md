@@ -40,7 +40,7 @@ Toolchain: Node ≥ 22, pnpm (pinned via `packageManager`), TypeScript 7, tsup 9
 3. Register it in the `tools` array in `src/server/registry.ts`.
 4. `execute` returns data and throws on failure; the registry maps errors to `{ code, message, statusCode }`.
 5. Tools are read-only; the registry marks every tool `readOnlyHint`.
-6. Document parameters in `README.md`.
+6. Document parameters in both `README.md` and `.github/README`.
 
 ## Kibana compatibility
 

@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/kibana-mcp.svg)](https://www.npmjs.com/package/kibana-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-7-blue.svg)](https://www.typescriptlang.org/)
 
 > Model Context Protocol (MCP) server exposing Kibana capabilities to AI agents over stdio transport.
 
@@ -14,11 +14,12 @@
 
 - **Log search** — Lucene queries with time range filtering and pagination
 - **Index management** — list indices, fetch index pattern field definitions
+- **Kibana 7.10+ / 8.x and AWS OpenSearch Dashboards** — API key, username/password, or SSO session cookie
 - **Raw ES DSL** — execute arbitrary Elasticsearch queries via Kibana
 - **Dashboard access** — list and inspect Kibana dashboard configurations
 - **Structured errors** — all failures return typed JSON, never raw exceptions
 - **Retry with backoff** — exponential backoff with jitter on transient failures
-- **MCP stdio transport** — works with Claude Desktop, Cursor, OpenCode, and any MCP-compatible client
+- **MCP stdio transport** — stateless 2026-07-28 protocol plus 2025-era clients; works with Claude Desktop, Cursor, OpenCode, and any MCP-compatible client
 
 ## Installation
 
