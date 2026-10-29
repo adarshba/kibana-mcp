@@ -1,6 +1,6 @@
 {
   "name": "kibana-mcp",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "MCP server exposing Kibana capabilities over stdio",
   "keywords": [
     "mcp",

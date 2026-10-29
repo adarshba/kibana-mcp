@@ -4,6 +4,7 @@ kibana-mcp
 A Model Context Protocol (MCP) server that exposes Kibana capabilities to
 AI agents over stdio transport. Search logs, inspect indices, run raw
 Elasticsearch DSL queries, and explore dashboards — all from your AI client.
+Works with Kibana 7.10+ / 8.x and AWS OpenSearch Dashboards.
 
 
 What is this?
@@ -11,8 +12,10 @@ What is this?
 
 This server bridges the MCP protocol and the Kibana REST API. An AI agent
 (Claude, Cursor, OpenCode, etc.) connects over stdio and calls tools that
-execute against your Kibana instance. Auth is via API key, username/password, or session cookie. Config is via
-environment variables. No side effects outside defined tool calls.
+execute against your Kibana instance. Speaks the stateless 2026-07-28 MCP
+protocol and still serves 2025-era clients. Auth is via API key,
+username/password, or session cookie. Config is via environment variables.
+All tools are read-only.
 
 
 Quick Start
@@ -26,11 +29,13 @@ Quick Start
 Environment Variables
 ---------------------
 
-  KIBANA_URL          (required) Base URL of your Kibana instance
+  KIBANA_URL          (required) Base URL of your Kibana instance, including
+                      any base path (AWS OpenSearch: https://host/_plugin/kibana)
   KIBANA_API_KEY      API key value (Authorization: ApiKey <value>)
   KIBANA_USERNAME     Basic auth username, set with KIBANA_PASSWORD
   KIBANA_PASSWORD     Basic auth password, set with KIBANA_USERNAME
-  KIBANA_COOKIE       Browser session cookie for SSO/proxy (e.g. sid=...)
+  KIBANA_COOKIE       Browser session cookie for SSO/proxy as name=value
+                      (e.g. sid=... or _pomerium=...)
                       Set exactly one auth method.
   KIBANA_TIMEOUT_MS   (optional) Request timeout in ms, default 30000
   KIBANA_MAX_RETRIES  (optional) Max retries on transient failures, default 3
@@ -75,13 +80,15 @@ Tools
 -----
 
 search_logs
-  Search logs using KQL or Lucene query syntax with optional time range
-  filtering and pagination.
+  Search logs using Lucene query syntax, newest first, with optional time
+  range filtering and pagination.
 
   index     (required) Index name or pattern, e.g. logs-*
-  query     (required) KQL or Lucene query string
+  query     (required) Lucene query string, e.g. level:error AND service:api
   from      (optional) Start time, ISO 8601 with offset
   to        (optional) End time, ISO 8601 with offset
+  timeField (optional) Date field to filter and sort on, default @timestamp;
+            use timeFieldName from get_index_pattern
   size      (optional) Results to return, default 50, max 500
   offset    (optional) Pagination offset, default 0
 
@@ -89,16 +96,19 @@ get_indices
   List all Elasticsearch indices available through Kibana. No parameters.
 
 get_index_pattern
-  Fetch details of a Kibana index pattern including all field definitions.
+  Fetch a Kibana index pattern: title, timeFieldName, and every field with
+  its Elasticsearch type, searchable and aggregatable flags.
 
   id        (required) Index pattern ID
 
 run_query
-  Execute a raw Elasticsearch DSL query against a Kibana index.
+  Execute a raw Elasticsearch DSL query against a Kibana index. Returns
+  hits, total, took and aggregations.
 
   index     (required) Target index name or pattern
-  query     (required) Elasticsearch DSL query object
-  size      (optional) Results to return, default 10, max 10000
+  query     (required) Elasticsearch _search request body
+  size      (optional) Results to return, default 10, max 10000;
+            0 for aggregation-only queries
 
 get_dashboards
   List Kibana dashboards with pagination.
@@ -115,22 +125,24 @@ get_dashboard
 Project Layout
 --------------
 
-  src/config/schema.ts          Zod schema for environment config
-  src/config/index.ts           Config loader with lazy validation
-  src/types/kibana.ts           Kibana API response type definitions
-  src/types/tool.ts             Tool<I,O>, ToolResult, StructuredError
-  src/core/errors.ts            KibanaError class and error mapper
-  src/clients/http.ts           Fetch wrapper: auth, timeout, retry
-  src/clients/kibana.ts         Typed Kibana REST API methods
-  src/tools/search-logs.ts      search_logs tool
-  src/tools/get-indices.ts      get_indices tool
-  src/tools/get-index-pattern.ts  get_index_pattern tool
-  src/tools/run-query.ts        run_query tool
-  src/tools/get-dashboards.ts   get_dashboards tool
-  src/tools/get-dashboard.ts    get_dashboard tool
-  src/server/registry.ts        Registers all tools on McpServer
-  src/server/index.ts           Bootstrap: config -> clients -> server -> stdio
   bin/cli.ts                    kibana-mcp start CLI entry point
+  src/server/index.ts           Server factory served over stdio (serveStdio)
+  src/server/registry.ts        Registers all tools on McpServer
+  src/tools/*.ts                One file per tool: zod schema + Tool object
+  src/clients/http.ts           Fetch wrapper: auth, timeout, retry
+  src/clients/kibana.ts         Kibana and Elasticsearch (console proxy) calls
+  src/config/                   Env parsing and config validation
+  src/core/constants.ts         All constants
+  src/core/errors.ts            KibanaError and error mapping
+  src/types/                    All types
+
+  See CONTRIBUTING.md for code rules and release steps.
+
+
+Requirements
+------------
+
+  Node.js >= 22
 
 
 License
