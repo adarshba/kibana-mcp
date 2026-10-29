@@ -1,21 +1,20 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { config } from "../config/index.js";
-import { createHttpClient } from "../clients/http.js";
-import { createKibanaClient } from "../clients/kibana.js";
-import { registerTools } from "./registry.js";
+import { McpServer } from "@modelcontextprotocol/server";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
+import { loadConfig } from "@/config";
+import { createHttpClient } from "@/clients/http";
+import { createKibanaClient } from "@/clients/kibana";
+import { registerTools } from "./registry";
+import pkg from "../../package.json" with { type: "json" };
 
 export const start = async (): Promise<void> => {
-  const http = createHttpClient(config);
-  const kibana = createKibanaClient(http);
+  const kibana = createKibanaClient(createHttpClient(loadConfig()));
 
-  const server = new McpServer({
-    name: "kibana-mcp",
-    version: "1.0.0",
+  serveStdio(() => {
+    const server = new McpServer(
+      { name: pkg.name, version: pkg.version },
+      { capabilities: { tools: {} } }
+    );
+    registerTools(server, kibana);
+    return server;
   });
-
-  registerTools(server, kibana);
-
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
 };

@@ -1,15 +1,17 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "outDir": "dist",
     "rootDir": ".",
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
-    "esModuleInterop": false,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "paths": { "@/*": ["./src/*"] },
     "skipLibCheck": true,
     "declaration": true,
     "declarationMap": false

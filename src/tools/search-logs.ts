@@ -1,58 +1,31 @@
-import { z, type ZodSchema } from "zod";
-import { type Tool } from "../types/tool.js";
-import { mapToStructuredError } from "../core/errors.js";
+import { z } from "zod";
+import { type Tool, type SearchLogsInput, type SearchLogsOutput } from "@/types/tool";
 
-const inputSchema = z.object({
-  index: z.string().min(1),
-  query: z.string().min(1),
-  from: z.string().datetime({ offset: true }).optional(),
-  to: z.string().datetime({ offset: true }).optional(),
-  size: z.number().int().min(1).max(500).default(50),
-  offset: z.number().int().min(0).default(0),
+export const searchLogsSchema = z.object({
+  index: z.string().min(1).describe("Index name or pattern, e.g. logs-*"),
+  query: z.string().min(1).describe("Lucene query string, e.g. level:error AND service:api"),
+  from: z.iso.datetime({ offset: true }).optional().describe("Start of time range, ISO 8601 with offset"),
+  to: z.iso.datetime({ offset: true }).optional().describe("End of time range, ISO 8601 with offset"),
+  timeField: z.string().min(1).default("@timestamp").describe("Date field to filter and sort on; use timeFieldName from get_index_pattern"),
+  size: z.number().int().min(1).max(500).default(50).describe("Number of hits to return"),
+  offset: z.number().int().min(0).default(0).describe("Number of hits to skip for pagination"),
 });
 
-type Input = z.infer<typeof inputSchema>;
-
-type Output = {
-  total: number;
-  hits: Array<{
-    id: string;
-    index: string;
-    score: number | null;
-    source: unknown;
-  }>;
-};
-
-export const searchLogsTool: Tool<Input, Output> = {
+export const searchLogsTool: Tool<SearchLogsInput, SearchLogsOutput> = {
   name: "search_logs",
   description:
-    "Search logs in a Kibana index using KQL or Lucene query syntax with optional time range filtering and pagination.",
-  inputSchema: inputSchema as ZodSchema<Input>,
+    "Search logs in a Kibana index using Lucene query syntax, newest first, with optional time range filtering and pagination.",
+  inputSchema: searchLogsSchema,
   execute: async (input, client) => {
-    try {
-      const result = await client.searchLogs({
-        index: input.index,
-        query: input.query,
-        from: input.from,
-        to: input.to,
-        size: input.size,
-        offset: input.offset,
-      });
-
-      return {
-        ok: true,
-        data: {
-          total: result.hits.total.value,
-          hits: result.hits.hits.map((hit) => ({
-            id: hit._id,
-            index: hit._index,
-            score: hit._score,
-            source: hit._source,
-          })),
-        },
-      };
-    } catch (err) {
-      return { ok: false, error: mapToStructuredError(err) };
-    }
+    const { hits } = await client.searchLogs(input);
+    return {
+      total: hits.total.value,
+      hits: hits.hits.map((hit) => ({
+        id: hit._id,
+        index: hit._index,
+        score: hit._score,
+        source: hit._source,
+      })),
+    };
   },
 };

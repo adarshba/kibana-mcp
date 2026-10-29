@@ -1,3 +1,6 @@
+import { type JsonObject, type JsonValue } from "./json";
+import { type GetDashboardsInput, type RunQueryInput, type SearchLogsInput } from "./tool";
+
 export type KibanaIndex = {
   name: string;
   health: string;
@@ -27,13 +30,7 @@ export type KibanaDashboard = {
   updatedAt: string;
 };
 
-export type KibanaDashboardDetail = {
-  id: string;
-  title: string;
-  description: string;
-  panels: unknown[];
-  updatedAt: string;
-};
+export type KibanaDashboardDetail = KibanaDashboard & { panels: JsonValue[] };
 
 export type KibanaHit<T> = {
   _id: string;
@@ -48,15 +45,18 @@ export type KibanaSearchResponse<T> = {
     total: { value: number; relation: string };
     hits: KibanaHit<T>[];
   };
+  aggregations?: JsonObject;
+};
+
+export type KibanaSavedObject<T> = {
+  id: string;
+  attributes: T;
+  updated_at: string;
 };
 
 export type KibanaSavedObjectsResponse<T> = {
   total: number;
-  saved_objects: Array<{
-    id: string;
-    attributes: T;
-    updated_at: string;
-  }>;
+  saved_objects: KibanaSavedObject<T>[];
 };
 
 export type KibanaDashboardAttributes = {
@@ -65,19 +65,33 @@ export type KibanaDashboardAttributes = {
   panelsJSON?: string;
 };
 
-export type KibanaIndexManagementIndex = {
-  name: string;
+export type KibanaCatIndex = {
+  index: string;
   health: string;
   status: string;
-  documents: { count: number };
-  size: { store: string };
+  "docs.count": string | null;
+  "store.size": string | null;
 };
 
-export type KibanaIndexPatternResponse = {
-  index_pattern: {
-    id: string;
-    title: string;
-    timeFieldName?: string;
-    fields: Record<string, { type: string; searchable: boolean; aggregatable: boolean }>;
-  };
+export type KibanaIndexPatternAttributes = {
+  title: string;
+  timeFieldName?: string;
+};
+
+export type KibanaFieldCapsResponse = {
+  fields: Record<string, Record<string, { type: string; searchable: boolean; aggregatable: boolean }>>;
+};
+
+export type KibanaDashboardList = {
+  total: number;
+  items: KibanaDashboard[];
+};
+
+export type KibanaClient = {
+  searchLogs: (params: SearchLogsInput) => Promise<KibanaSearchResponse<JsonObject>>;
+  getIndices: () => Promise<KibanaIndex[]>;
+  getIndexPattern: (id: string) => Promise<KibanaIndexPattern>;
+  runQuery: (params: RunQueryInput) => Promise<KibanaSearchResponse<JsonObject>>;
+  getDashboards: (params: GetDashboardsInput) => Promise<KibanaDashboardList>;
+  getDashboard: (id: string) => Promise<KibanaDashboardDetail>;
 };

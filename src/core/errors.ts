@@ -1,4 +1,4 @@
-import { type StructuredError } from "../types/tool.js";
+import { type StructuredError } from "@/types/tool";
 
 export class KibanaError extends Error {
   readonly statusCode: number;
@@ -10,24 +10,10 @@ export class KibanaError extends Error {
   }
 }
 
-export const mapToStructuredError = (err: unknown): StructuredError => {
+export const mapToStructuredError = (err: Error): StructuredError => {
   if (err instanceof KibanaError) {
-    return {
-      code: "KIBANA_ERROR",
-      message: err.message,
-      statusCode: err.statusCode,
-    };
+    return { code: "KIBANA_ERROR", message: err.message, statusCode: err.statusCode };
   }
 
-  if (err instanceof Error) {
-    return {
-      code: "UNEXPECTED_ERROR",
-      message: err.message,
-    };
-  }
-
-  return {
-    code: "UNKNOWN_ERROR",
-    message: String(err),
-  };
+  return { code: "UNEXPECTED_ERROR", message: err.message };
 };

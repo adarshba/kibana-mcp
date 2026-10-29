@@ -1,24 +1,14 @@
 import { z } from "zod";
-import { type Tool } from "../types/tool.js";
-import { mapToStructuredError } from "../core/errors.js";
-import { type KibanaDashboardDetail } from "../types/kibana.js";
+import { type KibanaDashboardDetail } from "@/types/kibana";
+import { type Tool, type GetDashboardInput } from "@/types/tool";
 
-const inputSchema = z.object({
-  id: z.string().min(1),
+export const getDashboardSchema = z.object({
+  id: z.string().min(1).describe("Dashboard saved object ID, from get_dashboards"),
 });
 
-type Input = z.infer<typeof inputSchema>;
-
-export const getDashboardTool: Tool<Input, KibanaDashboardDetail> = {
+export const getDashboardTool: Tool<GetDashboardInput, KibanaDashboardDetail> = {
   name: "get_dashboard",
   description: "Fetch details of a specific Kibana dashboard by ID, including its panel configuration.",
-  inputSchema,
-  execute: async (input, client) => {
-    try {
-      const dashboard = await client.getDashboard(input.id);
-      return { ok: true, data: dashboard };
-    } catch (err) {
-      return { ok: false, error: mapToStructuredError(err) };
-    }
-  },
+  inputSchema: getDashboardSchema,
+  execute: (input, client) => client.getDashboard(input.id),
 };

@@ -1,23 +1,13 @@
-import { type Config } from "../config/schema.js";
-import { KibanaError } from "../core/errors.js";
-
-export type HttpClient = {
-  get: <T>(path: string) => Promise<T>;
-  post: <T>(path: string, body: unknown) => Promise<T>;
-};
-
-const RETRYABLE_STATUS_CODES = new Set([429, 502, 503, 504]);
-const BASE_DELAY_MS = 200;
-const MAX_DELAY_MS = 10000;
+import { BASE_DELAY_MS, MAX_DELAY_MS, MAX_JITTER_MS, RETRYABLE_STATUS_CODES } from "@/core/constants";
+import { KibanaError } from "@/core/errors";
+import { type Config } from "@/types/config";
+import { type HttpClient } from "@/types/http";
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-const backoffDelay = (attempt: number): number => {
-  const exponential = BASE_DELAY_MS * Math.pow(2, attempt);
-  const jitter = Math.random() * 100;
-  return Math.min(exponential + jitter, MAX_DELAY_MS);
-};
+const backoffDelay = (attempt: number): number =>
+  Math.min(BASE_DELAY_MS * 2 ** attempt + Math.random() * MAX_JITTER_MS, MAX_DELAY_MS);
 
 const executeRequest = async (
   url: string,
@@ -39,59 +29,51 @@ const requestWithRetry = async (
   init: RequestInit,
   config: Config
 ): Promise<Response> => {
-  let lastResponse: Response | undefined;
+  let response = await executeRequest(url, init, config.timeoutMs);
 
-  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
-    if (attempt > 0) {
-      await sleep(backoffDelay(attempt - 1));
-    }
-
-    const response = await executeRequest(url, init, config.timeoutMs);
-
-    if (!RETRYABLE_STATUS_CODES.has(response.status)) {
-      return response;
-    }
-
-    lastResponse = response;
+  for (let attempt = 0; attempt < config.maxRetries && RETRYABLE_STATUS_CODES.has(response.status); attempt++) {
+    await sleep(backoffDelay(attempt));
+    response = await executeRequest(url, init, config.timeoutMs);
   }
 
-  throw new KibanaError(
-    `Request failed after ${config.maxRetries} retries: ${lastResponse?.statusText ?? "unknown"}`,
-    lastResponse?.status ?? 0
-  );
+  if (RETRYABLE_STATUS_CODES.has(response.status)) {
+    throw new KibanaError(`Request failed after ${config.maxRetries} retries: ${response.statusText}`, response.status);
+  }
+
+  return response;
 };
 
-const handleResponse = async <T>(response: Response): Promise<T> => {
-  if (!response.ok) {
-    const text = await response.text().catch(() => response.statusText);
-    throw new KibanaError(text, response.status);
+const authHeader = (config: Config): Record<string, string> => {
+  if (config.kibanaApiKey) {
+    return { Authorization: `ApiKey ${config.kibanaApiKey}` };
   }
-
-  return response.json() as Promise<T>;
+  if (config.kibanaCookie) {
+    return { Cookie: config.kibanaCookie };
+  }
+  const credentials = Buffer.from(`${config.kibanaUsername}:${config.kibanaPassword}`).toString("base64");
+  return { Authorization: `Basic ${credentials}` };
 };
 
 export const createHttpClient = (config: Config): HttpClient => {
   const headers = {
     "Content-Type": "application/json",
     "kbn-xsrf": "true",
-    Authorization: `ApiKey ${config.kibanaApiKey}`,
+    ...authHeader(config),
   };
 
-  const get = async <T>(path: string): Promise<T> => {
-    const url = `${config.kibanaUrl}${path}`;
-    const response = await requestWithRetry(url, { method: "GET", headers }, config);
-    return handleResponse<T>(response);
+  const request = async <T>(path: string, init: RequestInit): Promise<T> => {
+    const response = await requestWithRetry(`${config.kibanaUrl}${path}`, { ...init, headers }, config);
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => response.statusText);
+      throw new KibanaError(text, response.status);
+    }
+
+    return response.json() as Promise<T>;
   };
 
-  const post = async <T>(path: string, body: unknown): Promise<T> => {
-    const url = `${config.kibanaUrl}${path}`;
-    const response = await requestWithRetry(
-      url,
-      { method: "POST", headers, body: JSON.stringify(body) },
-      config
-    );
-    return handleResponse<T>(response);
+  return {
+    get: (path) => request(path, { method: "GET" }),
+    post: (path, body) => request(path, { method: "POST", body: JSON.stringify(body) }),
   };
-
-  return { get, post };
 };

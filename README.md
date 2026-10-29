@@ -12,7 +12,7 @@
 
 ## Features
 
-- **Log search** — KQL or Lucene queries with time range filtering and pagination
+- **Log search** — Lucene queries with time range filtering and pagination
 - **Index management** — list indices, fetch index pattern field definitions
 - **Raw ES DSL** — execute arbitrary Elasticsearch queries via Kibana
 - **Dashboard access** — list and inspect Kibana dashboard configurations
@@ -80,8 +80,11 @@ export KIBANA_API_KEY="your-api-key-here"
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `KIBANA_URL` | yes | — | Base URL of your Kibana instance |
-| `KIBANA_API_KEY` | yes | — | Kibana API key (`Authorization: ApiKey <value>`) |
+| `KIBANA_URL` | yes | — | Base URL of your Kibana instance, including any base path (e.g. `https://host/_plugin/kibana` on AWS OpenSearch) |
+| `KIBANA_API_KEY` | one auth method | — | Kibana API key (`Authorization: ApiKey <value>`) |
+| `KIBANA_USERNAME` | one auth method | — | Basic auth username, set with `KIBANA_PASSWORD` |
+| `KIBANA_PASSWORD` | one auth method | — | Basic auth password, set with `KIBANA_USERNAME` |
+| `KIBANA_COOKIE` | one auth method | — | Raw `Cookie` header from a logged-in browser session (e.g. `sid=...`, `_pomerium=...`) |
 | `KIBANA_TIMEOUT_MS` | no | `30000` | Request timeout in milliseconds |
 | `KIBANA_MAX_RETRIES` | no | `3` | Max retry attempts for transient failures (429, 502, 503, 504) |
 
@@ -89,14 +92,15 @@ export KIBANA_API_KEY="your-api-key-here"
 
 ### `search_logs`
 
-Search logs in a Kibana index using KQL or Lucene query syntax.
+Search logs in a Kibana index using Lucene query syntax.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `index` | string | yes | — | Index name or pattern (e.g. `logs-*`) |
-| `query` | string | yes | — | KQL or Lucene query string |
+| `query` | string | yes | — | Lucene query string |
 | `from` | string | no | — | Start time (ISO 8601 with offset) |
 | `to` | string | no | — | End time (ISO 8601 with offset) |
+| `timeField` | string | no | `@timestamp` | Date field to filter and sort on (see `timeFieldName` from `get_index_pattern`) |
 | `size` | number | no | `50` | Results to return (max 500) |
 | `offset` | number | no | `0` | Pagination offset |
 
@@ -120,7 +124,7 @@ Execute a raw Elasticsearch DSL query against a Kibana index.
 |---|---|---|---|---|
 | `index` | string | yes | — | Target index |
 | `query` | object | yes | — | Elasticsearch DSL query object |
-| `size` | number | no | `10` | Results to return (max 10000) |
+| `size` | number | no | `10` | Results to return (max 10000; `0` for aggregation-only queries) |
 
 ### `get_dashboards`
 
@@ -139,7 +143,24 @@ Fetch a specific Kibana dashboard including its panel configuration.
 |---|---|---|---|
 | `id` | string | yes | Dashboard saved object ID |
 
-## Getting Your API Key
+## Authentication
+
+Set exactly one of:
+
+- **API key** — `KIBANA_API_KEY`
+- **Username / password** — `KIBANA_USERNAME` + `KIBANA_PASSWORD` (native/LDAP realm on self-hosted Kibana)
+- **Session cookie** — `KIBANA_COOKIE`, for SSO or auth-proxy setups where no API key is available
+
+### Getting a Session Cookie
+
+1. Log in to Kibana in your browser
+2. Open DevTools → **Application → Cookies** → your Kibana domain
+3. Copy the session cookie as `name=value` (Kibana: `sid`; Pomerium: `_pomerium`; oauth2-proxy: `_oauth2_proxy`)
+4. Set it as `KIBANA_COOKIE`, e.g. `KIBANA_COOKIE="sid=Fe26.2**..."`
+
+The cookie expires with your session (Kibana default: 8h idle, 30d max; proxies vary). On 401 errors, copy a fresh one and restart the server.
+
+### Getting Your API Key
 
 1. Open Kibana in your browser
 2. Navigate to **Stack Management → API keys**
@@ -149,8 +170,12 @@ Fetch a specific Kibana dashboard including its panel configuration.
 
 ## Requirements
 
-- Node.js ≥ 20.0.0
-- Kibana instance with API key authentication enabled
+- Node.js ≥ 22
+- Kibana instance reachable with an API key, username/password, or session cookie
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
