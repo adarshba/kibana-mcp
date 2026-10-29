@@ -73,4 +73,4 @@ CI runs typecheck and build on every pull request.
 
 ## Releasing
 
-Bump `version` in `package.json` (semver; removing or changing tool output is a major) and merge to `main`. The publish workflow releases to npm when the version changes.
+Bump `version` in `package.json` (semver; removing or changing tool output is a major) and merge to `main`. The publish workflow releases any version not yet on npm, using npm trusted publishing (no token).
