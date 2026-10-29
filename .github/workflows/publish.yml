@@ -18,16 +18,15 @@ jobs:
       version: ${{ steps.check.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
 
-      - name: Check if version changed
+      - name: Check if version is unpublished
         id: check
         run: |
+          NAME=$(node -p "require('./package.json').name")
           CURRENT=$(node -p "require('./package.json').version")
-          PREVIOUS=$(git show HEAD~1:package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" || echo "0.0.0")
-          echo "current=$CURRENT previous=$PREVIOUS"
-          if [ "$CURRENT" != "$PREVIOUS" ]; then
+          PUBLISHED=$(npm view "$NAME@$CURRENT" version 2>/dev/null || true)
+          echo "current=$CURRENT published=${PUBLISHED:-none}"
+          if [ "$PUBLISHED" != "$CURRENT" ]; then
             echo "version_changed=true" >> "$GITHUB_OUTPUT"
             echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
           else
@@ -59,5 +58,3 @@ jobs:
       - run: pnpm build
 
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

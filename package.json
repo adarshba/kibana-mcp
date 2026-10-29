@@ -2,6 +2,24 @@
   "name": "kibana-mcp",
   "version": "2.0.0",
   "description": "MCP server exposing Kibana capabilities over stdio",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "kibana",
+    "elasticsearch",
+    "opensearch",
+    "logs"
+  ],
+  "license": "MIT",
+  "author": "Adarsh BA (https://github.com/adarshba)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adarshba/kibana-mcp.git"
+  },
+  "homepage": "https://github.com/adarshba/kibana-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/adarshba/kibana-mcp/issues"
+  },
   "type": "module",
   "bin": {
     "kibana-mcp": "dist/cli.js"
