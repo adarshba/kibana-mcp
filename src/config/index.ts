@@ -1,9 +1,13 @@
-import { configSchema, type Config } from "./schema.js";
+import { type Config } from "@/types/config";
+import { configSchema } from "./schema";
 
-const parseConfig = (): Config => {
+export const loadConfig = (): Config => {
   const result = configSchema.safeParse({
     kibanaUrl: process.env["KIBANA_URL"],
     kibanaApiKey: process.env["KIBANA_API_KEY"],
+    kibanaUsername: process.env["KIBANA_USERNAME"],
+    kibanaPassword: process.env["KIBANA_PASSWORD"],
+    kibanaCookie: process.env["KIBANA_COOKIE"],
     timeoutMs: process.env["KIBANA_TIMEOUT_MS"],
     maxRetries: process.env["KIBANA_MAX_RETRIES"],
   });
@@ -16,20 +20,3 @@ const parseConfig = (): Config => {
 
   return Object.freeze(result.data);
 };
-
-let cachedConfig: Config | undefined;
-
-export const getConfig = (): Config => {
-  if (!cachedConfig) {
-    cachedConfig = Object.freeze(parseConfig());
-  }
-  return cachedConfig;
-};
-
-export const config: Config = new Proxy({} as Config, {
-  get(_target, prop) {
-    return getConfig()[prop as keyof Config];
-  },
-});
-
-export type { Config };

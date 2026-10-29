@@ -1,44 +1,42 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { type KibanaClient } from "../clients/kibana.js";
-import { searchLogsTool } from "../tools/search-logs.js";
-import { getIndicesTool } from "../tools/get-indices.js";
-import { getIndexPatternTool } from "../tools/get-index-pattern.js";
-import { runQueryTool } from "../tools/run-query.js";
-import { getDashboardsTool } from "../tools/get-dashboards.js";
-import { getDashboardTool } from "../tools/get-dashboard.js";
-import { type Tool } from "../types/tool.js";
+import { type McpServer } from "@modelcontextprotocol/server";
+import { mapToStructuredError } from "@/core/errors";
+import { type KibanaClient } from "@/types/kibana";
+import { type StructuredError, type Tool, type ToolInput, type ToolOutput } from "@/types/tool";
+import { searchLogsTool } from "@/tools/search-logs";
+import { getIndicesTool } from "@/tools/get-indices";
+import { getIndexPatternTool } from "@/tools/get-index-pattern";
+import { runQueryTool } from "@/tools/run-query";
+import { getDashboardsTool } from "@/tools/get-dashboards";
+import { getDashboardTool } from "@/tools/get-dashboard";
 
-const tools = [
+const tools: Tool<ToolInput, ToolOutput>[] = [
   searchLogsTool,
   getIndicesTool,
   getIndexPatternTool,
   runQueryTool,
   getDashboardsTool,
   getDashboardTool,
-] as unknown as Tool<never, unknown>[];
+];
+
+const toContent = (value: ToolOutput | StructuredError) => [
+  { type: "text" as const, text: JSON.stringify(value, null, 2) },
+];
 
 export const registerTools = (server: McpServer, client: KibanaClient): void => {
   for (const tool of tools) {
-    const schema = tool.inputSchema as unknown as {
-      shape: Record<string, unknown>;
-    };
-    server.tool(
+    server.registerTool(
       tool.name,
-      tool.description,
-      schema.shape,
+      {
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        annotations: { readOnlyHint: true, openWorldHint: true },
+      },
       async (input) => {
-        const result = await tool.execute(input as never, client);
-
-        if (result.ok) {
-          return {
-            content: [{ type: "text", text: JSON.stringify(result.data, null, 2) }],
-          };
+        try {
+          return { content: toContent(await tool.execute(input, client)) };
+        } catch (err) {
+          return { content: toContent(mapToStructuredError(err instanceof Error ? err : new Error(String(err)))), isError: true };
         }
-
-        return {
-          content: [{ type: "text", text: JSON.stringify(result.error, null, 2) }],
-          isError: true,
-        };
       }
     );
   }

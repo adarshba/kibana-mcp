@@ -1,48 +1,22 @@
-import { type HttpClient } from "./http.js";
+import { type HttpClient } from "@/types/http";
 import {
-  type KibanaSearchResponse,
-  type KibanaIndex,
-  type KibanaIndexPattern,
-  type KibanaDashboard,
-  type KibanaDashboardDetail,
-  type KibanaSavedObjectsResponse,
+  type KibanaClient,
   type KibanaDashboardAttributes,
-  type KibanaIndexManagementIndex,
-  type KibanaIndexPatternResponse,
-} from "../types/kibana.js";
+  type KibanaCatIndex,
+  type KibanaFieldCapsResponse,
+  type KibanaIndexPatternAttributes,
+  type KibanaSavedObject,
+  type KibanaSavedObjectsResponse,
+  type KibanaSearchResponse,
+} from "@/types/kibana";
+import { type JsonObject, type JsonValue } from "@/types/json";
 
-export type SearchLogsParams = {
-  index: string;
-  query: string;
-  from?: string;
-  to?: string;
-  size: number;
-  offset: number;
-};
+const proxyPath = (path: string, method: "GET" | "POST"): string =>
+  `/api/console/proxy?path=${encodeURIComponent(path)}&method=${method}`;
 
-export type RunQueryParams = {
-  index: string;
-  query: Record<string, unknown>;
-  size: number;
-};
-
-export type GetDashboardsParams = {
-  page: number;
-  perPage: number;
-};
-
-export type KibanaClient = {
-  searchLogs: (params: SearchLogsParams) => Promise<KibanaSearchResponse<unknown>>;
-  getIndices: () => Promise<KibanaIndex[]>;
-  getIndexPattern: (id: string) => Promise<KibanaIndexPattern>;
-  runQuery: (params: RunQueryParams) => Promise<KibanaSearchResponse<unknown>>;
-  getDashboards: (params: GetDashboardsParams) => Promise<{ total: number; items: KibanaDashboard[] }>;
-  getDashboard: (id: string) => Promise<KibanaDashboardDetail>;
-};
-
-export const createKibanaClient = (http: HttpClient): KibanaClient => {
-  const searchLogs = async (params: SearchLogsParams): Promise<KibanaSearchResponse<unknown>> => {
-    const body: Record<string, unknown> = {
+export const createKibanaClient = (http: HttpClient): KibanaClient => ({
+  searchLogs: (params) =>
+    http.post<KibanaSearchResponse<JsonObject>>(proxyPath(`${params.index}/_search`, "POST"), {
       from: params.offset,
       size: params.size,
       query: {
@@ -53,7 +27,7 @@ export const createKibanaClient = (http: HttpClient): KibanaClient => {
                 filter: [
                   {
                     range: {
-                      "@timestamp": {
+                      [params.timeField]: {
                         ...(params.from ? { gte: params.from } : {}),
                         ...(params.to ? { lte: params.to } : {}),
                       },
@@ -64,79 +38,73 @@ export const createKibanaClient = (http: HttpClient): KibanaClient => {
             : {}),
         },
       },
-      sort: [{ "@timestamp": { order: "desc" } }],
-    };
+      sort: [{ [params.timeField]: { order: "desc" } }],
+    }),
 
-    const path = `/api/console/proxy?path=${encodeURIComponent(`${params.index}/_search`)}&method=POST`;
-    return http.post<KibanaSearchResponse<unknown>>(path, body);
-  };
-
-  const getIndices = async (): Promise<KibanaIndex[]> => {
-    const raw = await http.get<KibanaIndexManagementIndex[]>("/api/index_management/indices");
-    return raw.map((idx) => ({
-      name: idx.name,
+  getIndices: async () => {
+    const indices = await http.post<KibanaCatIndex[]>(
+      proxyPath("_cat/indices?format=json&h=index,health,status,docs.count,store.size", "GET")
+    );
+    return indices.map((idx) => ({
+      name: idx.index,
       health: idx.health,
       status: idx.status,
-      docsCount: idx.documents.count,
-      storeSize: idx.size.store,
+      docsCount: Number(idx["docs.count"] ?? 0),
+      storeSize: idx["store.size"] ?? "",
     }));
-  };
+  },
 
-  const getIndexPattern = async (id: string): Promise<KibanaIndexPattern> => {
-    const raw = await http.get<KibanaIndexPatternResponse>(
-      `/api/index_patterns/index_pattern/${encodeURIComponent(id)}`
+  getIndexPattern: async (id) => {
+    const { attributes } = await http.get<KibanaSavedObject<KibanaIndexPatternAttributes>>(
+      `/api/saved_objects/index-pattern/${encodeURIComponent(id)}`
     );
-    const ip = raw.index_pattern;
+    const { fields } = await http.post<KibanaFieldCapsResponse>(
+      proxyPath(`${attributes.title}/_field_caps?fields=*`, "GET")
+    );
     return {
-      id: ip.id,
-      title: ip.title,
-      timeFieldName: ip.timeFieldName,
-      fields: Object.entries(ip.fields).map(([name, field]) => ({
-        name,
-        type: field.type,
-        searchable: field.searchable,
-        aggregatable: field.aggregatable,
-      })),
+      id,
+      title: attributes.title,
+      timeFieldName: attributes.timeFieldName,
+      fields: Object.entries(fields).map(([name, caps]) => {
+        const types = Object.values(caps);
+        return {
+          name,
+          type: types.length > 1 ? "conflict" : types[0].type,
+          searchable: types.every((t) => t.searchable),
+          aggregatable: types.every((t) => t.aggregatable),
+        };
+      }),
     };
-  };
+  },
 
-  const runQuery = async (params: RunQueryParams): Promise<KibanaSearchResponse<unknown>> => {
-    const body = { ...params.query, size: params.size };
-    const path = `/api/console/proxy?path=${encodeURIComponent(`${params.index}/_search`)}&method=POST`;
-    return http.post<KibanaSearchResponse<unknown>>(path, body);
-  };
+  runQuery: (params) =>
+    http.post<KibanaSearchResponse<JsonObject>>(proxyPath(`${params.index}/_search`, "POST"), { ...params.query, size: params.size }),
 
-  const getDashboards = async (
-    params: GetDashboardsParams
-  ): Promise<{ total: number; items: KibanaDashboard[] }> => {
-    const path = `/api/saved_objects/_find?type=dashboard&per_page=${params.perPage}&page=${params.page}`;
-    const raw = await http.get<KibanaSavedObjectsResponse<KibanaDashboardAttributes>>(path);
+  getDashboards: async (params) => {
+    const found = await http.get<KibanaSavedObjectsResponse<KibanaDashboardAttributes>>(
+      `/api/saved_objects/_find?type=dashboard&per_page=${params.perPage}&page=${params.page}`
+    );
     return {
-      total: raw.total,
-      items: raw.saved_objects.map((obj) => ({
+      total: found.total,
+      items: found.saved_objects.map((obj) => ({
         id: obj.id,
         title: obj.attributes.title,
         description: obj.attributes.description ?? "",
         updatedAt: obj.updated_at,
       })),
     };
-  };
+  },
 
-  const getDashboard = async (id: string): Promise<KibanaDashboardDetail> => {
-    const raw = await http.get<KibanaSavedObjectsResponse<KibanaDashboardAttributes>["saved_objects"][number]>(
+  getDashboard: async (id) => {
+    const dashboard = await http.get<KibanaSavedObject<KibanaDashboardAttributes>>(
       `/api/saved_objects/dashboard/${encodeURIComponent(id)}`
     );
-    const panels: unknown[] = raw.attributes.panelsJSON
-      ? (JSON.parse(raw.attributes.panelsJSON) as unknown[])
-      : [];
     return {
-      id: raw.id,
-      title: raw.attributes.title,
-      description: raw.attributes.description ?? "",
-      panels,
-      updatedAt: raw.updated_at,
+      id: dashboard.id,
+      title: dashboard.attributes.title,
+      description: dashboard.attributes.description ?? "",
+      panels: dashboard.attributes.panelsJSON ? (JSON.parse(dashboard.attributes.panelsJSON) as JsonValue[]) : [],
+      updatedAt: dashboard.updated_at,
     };
-  };
-
-  return { searchLogs, getIndices, getIndexPattern, runQuery, getDashboards, getDashboard };
-};
+  },
+});

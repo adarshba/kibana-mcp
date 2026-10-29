@@ -11,7 +11,7 @@ What is this?
 
 This server bridges the MCP protocol and the Kibana REST API. An AI agent
 (Claude, Cursor, OpenCode, etc.) connects over stdio and calls tools that
-execute against your Kibana instance. Auth is via API key. Config is via
+execute against your Kibana instance. Auth is via API key, username/password, or session cookie. Config is via
 environment variables. No side effects outside defined tool calls.
 
 
@@ -27,7 +27,11 @@ Environment Variables
 ---------------------
 
   KIBANA_URL          (required) Base URL of your Kibana instance
-  KIBANA_API_KEY      (required) API key value (Authorization: ApiKey <value>)
+  KIBANA_API_KEY      API key value (Authorization: ApiKey <value>)
+  KIBANA_USERNAME     Basic auth username, set with KIBANA_PASSWORD
+  KIBANA_PASSWORD     Basic auth password, set with KIBANA_USERNAME
+  KIBANA_COOKIE       Browser session cookie for SSO/proxy (e.g. sid=...)
+                      Set exactly one auth method.
   KIBANA_TIMEOUT_MS   (optional) Request timeout in ms, default 30000
   KIBANA_MAX_RETRIES  (optional) Max retries on transient failures, default 3
 
